@@ -1,0 +1,16 @@
+[package]
+name = "grup"
+version = "0.1.0"
+authors = ["razorheadfx <\"felix.girke@tu-dortmund.de\">"]
+edition = "2018"
+
+[dependencies]
+log = "0.4.6"
+env_logger = "0.6.0"
+structopt = "0.2.14"
+simple-server = "0.4.0"
+comrak = "0.4.0"
+
+[[bin]]
+name = "grup"
+path = "src/grup.rs"
