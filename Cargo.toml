@@ -1,11 +1,12 @@
 [package]
 name        = "grup"
+description = "an offline github markdown previewer"
 version     = "0.2.0"
 authors     = ["razorheadfx <\"felix.girke@tu-dortmund.de\">"]
-edition     = "2018"
 keywords    = ["grip", "offline", "markdown", "github", "preview"]
 categories  = ["command-line-utilities", "visualization"]
 repository  = "https://github.com/razorheadfx/grup"
+edition     = "2018"
 readme      = "README.md"
 license     = "WTFPL"
 
