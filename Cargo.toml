@@ -1,16 +1,20 @@
 [package]
-name = "grup"
-version = "0.2.0"
-authors = ["razorheadfx <\"felix.girke@tu-dortmund.de\">"]
-edition = "2018"
-keywords = ["grip", "offline", "markdown", "github", "preview"]
+name        = "grup"
+version     = "0.2.0"
+authors     = ["razorheadfx <\"felix.girke@tu-dortmund.de\">"]
+edition     = "2018"
+keywords    = ["grip", "offline", "markdown", "github", "preview"]
+categories  = ["command-line-utilities", "visualization"]
+repository  = "https://github.com/razorheadfx/grup"
+readme      = "README.md"
+license     = "WTFPL"
 
 [dependencies]
-log = "0.4.6"
-env_logger = "0.6.0"
-structopt = "0.2.14"
-simple-server = "0.4.0"
-comrak = "0.4.0"
+log             = "0.4.6"
+env_logger      = "0.6.0"
+structopt       = "0.2.14"
+simple-server   = "0.4.0"
+comrak          = "0.4.0"
 
 [[bin]]
 name = "grup"
