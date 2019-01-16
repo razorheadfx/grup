@@ -1,4 +1,5 @@
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 extern crate env_logger;
 
 // md parser + formatter
@@ -19,12 +20,16 @@ use std::process;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
-/// grup - a offline github markdown previewer 
+/// grup - a offline github markdown previewer
 struct Cfg {
     #[structopt(name = "markdown_file", parse(from_os_str))]
     /// The markdown file to be served
     md_file: PathBuf,
-    #[structopt(long = "port", default_value = "8000", help = "the port to use for the server")]
+    #[structopt(
+        long = "port",
+        default_value = "8000",
+        help = "the port to use for the server"
+    )]
     port: u16,
     #[structopt(
         long = "host",
@@ -34,7 +39,7 @@ struct Cfg {
     host: IpAddr,
 }
 
-const DEFAULT_CSS : &[u8] = include_bytes!("../resource/github-markdown.css");
+const DEFAULT_CSS: &[u8] = include_bytes!("../resource/github-markdown.css");
 
 fn main() {
     env_logger::Builder::from_default_env().init();
@@ -56,17 +61,15 @@ fn main() {
 
     // TODO: setup notify hook on file
     // - calls of inotify (debounced is fine; take Write Events; reparse and re-render)
-    // OPT: use ws to force page refresh on update maybe?
 
     let server = Server::new(move |request, mut response| {
         info!("Request received. {} {}", request.method(), request.uri());
 
-        // if they want the style serve it
+        // if they want the stylesheet serve it
         // else give them the formatted MD file
-        match request.uri().path(){
-            "/style.css" => return Ok(response.body(DEFAULT_CSS.to_vec())?),
-            _ => ()
-        };
+        if request.uri().path() == "/style.css" {
+            return Ok(response.body(DEFAULT_CSS.to_vec())?);
+        }
 
         let parsed_and_formatted = File::open(&file)
             .and_then(|mut f| {
@@ -78,7 +81,7 @@ fn main() {
                 options.hardbreaks = true;
                 Ok(comrak::markdown_to_html(&md, &options))
             })
-            .unwrap_or_else(|e|format!("Grup encountered an error: <br> {:#?}",e));
+            .unwrap_or_else(|e| format!("Grup encountered an error: <br> {:#?}", e));
 
         // push it all into a container
         let doc = format!(
@@ -101,7 +104,8 @@ fn main() {
                 {}
                 <article class=\"markdown-body\">
                 </body>
-            </html>", file, parsed_and_formatted
+            </html>",
+            file, parsed_and_formatted
         );
 
         Ok(response.body(doc.into_bytes())?)
