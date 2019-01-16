@@ -1,8 +1,12 @@
-#[macro_use]
-extern crate log;
-extern crate comrak;
+#[macro_use] extern crate log;
 extern crate env_logger;
+
+// md parser + formatter
+extern crate comrak;
+// simple http server
 extern crate simple_server;
+
+// cmdline parsing
 extern crate structopt;
 
 use comrak::ComrakOptions;
@@ -15,19 +19,22 @@ use std::process;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
+/// grup - a offline github markdown previewer 
 struct Cfg {
     #[structopt(name = "markdown_file")]
     /// The markdown file to be served
     md_file: PathBuf,
-    #[structopt(long = "port", default_value = "8000", help = "the port to use")]
+    #[structopt(long = "port", default_value = "8000", help = "the port to use for the server")]
     port: u16,
     #[structopt(
         long = "host",
         default_value = "127.0.0.1",
-        help = "the ip to serve under"
+        help = "the ip to use for the server"
     )]
     host: IpAddr,
 }
+
+const DEFAULT_CSS : &[u8] = include_bytes!("../resource/github-markdown.css");
 
 fn main() {
     env_logger::Builder::from_default_env().init();
@@ -53,6 +60,14 @@ fn main() {
 
     let server = Server::new(move |request, mut response| {
         info!("Request received. {} {}", request.method(), request.uri());
+
+        // if they want the style serve it
+        // else give them the formatted MD file
+        match request.uri().path(){
+            "/style.css" => return Ok(response.body(DEFAULT_CSS.to_vec())?),
+            _ => ()
+        };
+
         let parsed_and_formatted = File::open(&file)
             .and_then(|mut f| {
                 let mut s = String::new();
@@ -62,16 +77,32 @@ fn main() {
                 let mut options = ComrakOptions::default();
                 options.hardbreaks = true;
                 Ok(comrak::markdown_to_html(&md, &options))
-            });
-        let doc = match parsed_and_formatted {
-            Ok(s) => s,
-            Err(e) => format!(
-                "<html>\n
-                        <body>\nGrup encountered an error: <br> {:#?}</body>
-                    </html>",
-                e
-            ),
-        };
+            })
+            .unwrap_or_else(|e|format!("Grup encountered an error: <br> {:#?}",e));
+
+        // push it all into a container
+        let doc = format!(
+            "<html>
+                <head>
+                    <style>
+                        body {{
+                        box-sizing: border-box;
+                        min-width: 200px;
+                        max-width: 980px;
+                        margin: 0 auto;
+                        padding: 45px;
+                        }}
+                    </style>
+                    <link rel=\"stylesheet\" href=\"style.css\">
+                    <title>{:#?}</title>
+                </head>
+                <body>
+                <article class=\"markdown-body\">
+                {}
+                <article class=\"markdown-body\">
+                </body>
+            </html>", file, parsed_and_formatted
+        );
 
         Ok(response.body(doc.into_bytes())?)
     });

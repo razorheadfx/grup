@@ -1,8 +1,9 @@
 [package]
 name = "grup"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["razorheadfx <\"felix.girke@tu-dortmund.de\">"]
 edition = "2018"
+keywords = ["grip", "offline", "markdown", "github", "preview"]
 
 [dependencies]
 log = "0.4.6"
