@@ -21,7 +21,7 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 /// grup - a offline github markdown previewer 
 struct Cfg {
-    #[structopt(name = "markdown_file")]
+    #[structopt(name = "markdown_file", parse(from_os_str))]
     /// The markdown file to be served
     md_file: PathBuf,
     #[structopt(long = "port", default_value = "8000", help = "the port to use for the server")]
