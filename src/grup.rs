@@ -62,7 +62,7 @@ fn main() {
     // TODO: setup notify hook on file
     // - calls of inotify (debounced is fine; take Write Events; reparse and re-render)
 
-    let server = Server::new(move |request, mut response| {
+    let mut server = Server::new(move |request, mut response| {
         info!("Request received. {} {}", request.method(), request.uri());
 
         // if they want the stylesheet serve it
@@ -114,6 +114,8 @@ fn main() {
 
         Ok(response.body(doc.into_bytes())?)
     });
+
+    server.set_static_directory(".");
 
     println!("Server running at http://{}:{}", host, port);
     println!("Press Ctrl-C to exit");
