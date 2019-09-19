@@ -83,10 +83,14 @@ fn main() {
             })
             .unwrap_or_else(|e| format!("Grup encountered an error: <br> {:#?}", e));
 
+        let title = String::from(file.to_str().unwrap_or(&format!("{:?}", file)));
+
         // push it all into a container
         let doc = format!(
-            "<html>
+            r#"<!DOCTYPE html>
+             <html>
                 <head>
+                    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
                     <style>
                         body {{
                         box-sizing: border-box;
@@ -96,16 +100,16 @@ fn main() {
                         padding: 45px;
                         }}
                     </style>
-                    <link rel=\"stylesheet\" href=\"style.css\">
-                    <title>{:#?}</title>
+                    <link rel="stylesheet" href="style.css">
+                    <title>{}</title>
                 </head>
                 <body>
-                <article class=\"markdown-body\">
+                <article class="markdown-body">
                 {}
-                <article class=\"markdown-body\">
+                <article class="markdown-body">
                 </body>
-            </html>",
-            file, parsed_and_formatted
+            </html>"#,
+            title, parsed_and_formatted
         );
 
         Ok(response.body(doc.into_bytes())?)
