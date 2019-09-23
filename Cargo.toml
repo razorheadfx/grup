@@ -11,11 +11,11 @@ readme      = "README.md"
 license     = "WTFPL"
 
 [dependencies]
-log             = "0.4.6"
+log             = "0.4.8"
 env_logger      = "0.6.0"
-structopt       = "0.2.14"
+structopt       = "0.3.2"
 simple-server   = "0.4.0"
-comrak          = "0.4.0"
+comrak          = "0.6.0"
 
 [[bin]]
 name = "grup"
