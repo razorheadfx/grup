@@ -31,6 +31,11 @@ struct Cfg {
         help = "the ip to use for the server"
     )]
     host: IpAddr,
+    #[structopt(
+        long = "serve-static",
+        help = "serve static files relative to markdown file"
+    )]
+    serve_static: bool,
 }
 
 type CfgPtr = Arc<Cfg>;
@@ -110,11 +115,43 @@ async fn css() -> Result<Response<Body>, hyper::Error> {
         .expect("invalid response builder"))
 }
 
+// Will only serve files relative to the md file
+async fn static_file(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    let mut response = Response::builder();
+    let cwd = std::env::current_dir().expect("no working dir");
+    if req.uri().path().len() > 1 {
+        let mut fullpath = cwd.clone();
+        // path() contains preceeding forward slash: /some/web/page
+        fullpath.push(&req.uri().path()[1..]);
+        // canonicalize returns Err if path does not exist.
+        if let Ok(fullpath) = fullpath.canonicalize() {
+            if fullpath.starts_with(&cwd) {
+                if let Ok(mut file) = File::open(&fullpath).await {
+                    let mut buf = String::new();
+                    if file.read_to_string(&mut buf).await.is_ok() {
+                        return Ok(response
+                            .body(Body::from(buf))
+                            .expect("invalid response builder"));
+                    }
+                }
+            }
+        }
+    }
+    info!("{} not found", req.uri());
+    not_found()
+}
+
 async fn router(cfg: CfgPtr, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     match req.uri().path() {
         "/" => md_file(cfg).await,
         "/style.css" => css().await,
-        _ => not_found(),
+        _ => {
+            if cfg.serve_static {
+                static_file(req).await
+            } else {
+                not_found()
+            }
+        }
     }
 }
 
@@ -123,6 +160,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::Builder::from_default_env().init();
     let cfg = Arc::new(Cfg::from_args());
     let file = &cfg.md_file;
+    if let Some(parent) = file.parent() {
+        std::env::set_current_dir(parent)?;
+    } else {
+        std::env::set_current_dir(std::path::Component::RootDir.as_os_str())?;
+    }
 
     if !file.exists() {
         return Err(
