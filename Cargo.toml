@@ -18,10 +18,14 @@ env_logger      = "0.6.0"
 structopt       = "0.3.2"
 # md parser
 comrak          = "0.6.0"
+# monitor files
+inotify         = "0.7.0"
 # simple http server
 hyper           = "0.13.0-alpha.1"
 tokio           = "0.2.0-alpha.4"
 tokio-fs        = "0.2.0-alpha.4"
+# async primitives
+futures-channel-preview = "0.3.0-alpha.18"
 
 [[bin]]
 name = "grup"
