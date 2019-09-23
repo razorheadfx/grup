@@ -1,0 +1,19 @@
+language: rust
+cache: cargo
+before_script:
+- rustup component add rustfmt
+git:
+  depth: 1
+script:
+  - cargo fmt --all -- --check
+  - cargo build --verbose --all --no-default-features --features "$FEATURES"
+  - cargo test  --verbose --all --no-default-features --features "$FEATURES"
+rust:
+  - stable
+  - nightly
+env:
+  matrix:
+    - FEATURES=''
+matrix:
+  allow_failures:
+    - rust: nightly
