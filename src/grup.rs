@@ -3,12 +3,14 @@ extern crate log;
 
 use std::io;
 use std::net::IpAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use comrak::ComrakOptions;
+use futures_channel::oneshot::{channel, Sender};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server, StatusCode};
+use inotify::{EventMask, Inotify, WatchMask};
 use structopt::StructOpt;
 use tokio::prelude::*;
 use tokio_fs::File;
@@ -32,6 +34,12 @@ struct Cfg {
     )]
     host: IpAddr,
     #[structopt(
+        long = "interval",
+        default_value = "60",
+        help = "timeout interval for long polling http"
+    )]
+    interval: u32,
+    #[structopt(
         long = "serve-static",
         help = "serve static files relative to markdown file"
     )]
@@ -39,6 +47,7 @@ struct Cfg {
 }
 
 type CfgPtr = Arc<Cfg>;
+type SenderListPtr = Arc<Mutex<Vec<Sender<()>>>>;
 
 const DEFAULT_CSS: &[u8] = include_bytes!("../resource/github-markdown.css");
 
@@ -50,8 +59,24 @@ fn not_found() -> Result<Response<Body>, hyper::Error> {
         .expect("invalid response builder"))
 }
 
-// TODO: setup notify hook on file
-// - calls of inotify (debounced is fine; take Write Events; reparse and re-render)
+async fn update(updaters: SenderListPtr) -> Result<Response<Body>, hyper::Error> {
+    let mut response = Response::builder();
+    response.header("Cache-Control", "no-cache, no-store, must-revalidate");
+    response.header("Pragma", "no-cache");
+    response.header("Expires", "0");
+
+    let (tx, rx) = channel();
+    if let Ok(mut updaters) = updaters.lock() {
+        updaters.push(tx);
+    } else {
+        error!("Internal error: mutex poisoned");
+    }
+
+    let _ = rx.await;
+    Ok(response
+        .body(Body::from("yes"))
+        .expect("invalid response builder"))
+}
 
 async fn md_file(cfg: CfgPtr) -> Result<Response<Body>, hyper::Error> {
     let mut response = Response::builder();
@@ -97,10 +122,35 @@ async fn md_file(cfg: CfgPtr) -> Result<Response<Body>, hyper::Error> {
             <article class="markdown-body">
             {content}
             </article>
+            <script type="text/javascript">
+            function reload_check () {{
+                var xhr = new XMLHttpRequest();
+                xhr.overrideMimeType("text/plain");
+                xhr.timeout = {interval};
+                xhr.onreadystatechange = function () {{
+                    if(this.readyState === 4) {{
+                        if (this.status === 200) {{
+                            if (this.responseText == "yes") {{
+                                location.reload();
+                            }} else {{
+                                reload_check();
+                            }}
+                        }}
+                    }}
+                }}
+                xhr.ontimeout = function () {{
+                    reload_check();
+                }}
+                xhr.open("GET", "/update", true);
+                xhr.send();
+            }}
+            reload_check();
+            </script>
             </body>
         </html>"#,
         title = title,
         content = content,
+        interval = cfg.interval * 1000
     );
     Ok(response
         .body(Body::from(document))
@@ -141,8 +191,13 @@ async fn static_file(req: Request<Body>) -> Result<Response<Body>, hyper::Error>
     not_found()
 }
 
-async fn router(cfg: CfgPtr, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn router(
+    cfg: CfgPtr,
+    updaters: SenderListPtr,
+    req: Request<Body>,
+) -> Result<Response<Body>, hyper::Error> {
     match req.uri().path() {
+        "/update" => update(updaters).await,
         "/" => md_file(cfg).await,
         "/style.css" => css().await,
         _ => {
@@ -153,6 +208,55 @@ async fn router(cfg: CfgPtr, req: Request<Body>) -> Result<Response<Body>, hyper
             }
         }
     }
+}
+
+fn spawn_watcher(cfg: CfgPtr, updaters: SenderListPtr) {
+    let parent = cfg
+        .md_file
+        .parent()
+        .map(|x| {
+            if x == Path::new("") {
+                PathBuf::from(".")
+            } else {
+                PathBuf::from(x)
+            }
+        })
+        .unwrap_or(PathBuf::from("/"));
+    std::thread::spawn(move || {
+        let mut inotify = Inotify::init().expect("inotify init failed");
+        inotify
+            .add_watch(&parent, WatchMask::MODIFY | WatchMask::CREATE)
+            .expect("failed to watch");
+        let mut buf = [0u8; 1024];
+        let md_file_name = cfg.md_file.file_name().expect("path was `..`");
+        loop {
+            let events = inotify
+                .read_events_blocking(&mut buf)
+                .expect("failed to read events");
+            for event in events {
+                if event.name.is_none() {
+                    break;
+                }
+                let name = event.name.unwrap();
+                if event.mask.contains(EventMask::CREATE) {
+                    debug!("file created {:?}", name);
+                } else if event.mask.contains(EventMask::MODIFY) {
+                    debug!("file modified {:?}", name);
+                }
+                if Path::new(name) == md_file_name {
+                    info!("file updated {:?}", name);
+                    if let Ok(mut updaters) = updaters.lock() {
+                        for tx in updaters.drain(..) {
+                            // ignore errors
+                            let _ = tx.send(());
+                        }
+                    } else {
+                        error!("Internal error: mutex poisoned");
+                    }
+                }
+            }
+        }
+    });
 }
 
 #[tokio::main]
@@ -178,9 +282,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         );
     }
 
+    let updaters = Arc::new(Mutex::new(Vec::new()));
+    spawn_watcher(cfg.clone(), Arc::clone(&updaters));
+
     let service = make_service_fn(|_| {
         let cfg = Arc::clone(&cfg);
-        async { Ok::<_, hyper::Error>(service_fn(move |req| router(Arc::clone(&cfg), req))) }
+        let updaters = Arc::clone(&updaters);
+        async {
+            Ok::<_, hyper::Error>(service_fn(move |req| {
+                router(Arc::clone(&cfg), Arc::clone(&updaters), req)
+            }))
+        }
     });
 
     let addr = std::net::SocketAddr::new(cfg.host, cfg.port);
