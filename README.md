@@ -1,6 +1,9 @@
 # grup - offline markdown previewer
 [![Latest Version](https://img.shields.io/crates/v/grup.svg)](https://crates.io/crates/grup)
+[![Documentation](https://docs.rs/grup/badge.svg)](https://docs.rs/crate/grup)
 [![License](https://img.shields.io/crates/l/grup.svg)](https:///www.wtfpl.net/)
+[![Build Status](https://travis-ci.org/razorheadfx/grup.svg?branch=master)](https://travis-ci.org/razorheadfx/grup)
+[![dependency status](https://deps.rs/repo/github/razorheadfx/grup/status.svg)](https://deps.rs/repo/github/razorheadfx/grup)
 
 ## What is grup?
 ```grup``` is an offline markdown previewer inspired by the impeccable [grip](https://github.com/joeyespo/grip) - minus sending your local files to [github](https://developer.github.com/v3/markdown/) for formatting - therefore a little easier to stomach for privacy inclined people (like me).
@@ -20,9 +23,8 @@ This will open a local webserver (by default at ```127.0.0.1:8000```) and displa
 Refreshing the page will also cause the document to be updated.  
 When you're done stop grup by pressing ```Ctrl+C```.  
 
-## Roadmap
-- [ ] Add inotify hooks + js to refresh document (e.g. using a dedicated url /updates which returns 404 if there is nothing new; else use js' document.reload() to refresh page)  
-- [ ] Maybe add syntax highlighting
+## Contributors
+Thanks to @NickeZ
 
 ## Known Issues
 ### "No such remote or remote group: <filename>" when running grup
