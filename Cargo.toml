@@ -8,7 +8,8 @@ categories  = ["command-line-utilities", "visualization"]
 repository  = "https://github.com/razorheadfx/grup"
 edition     = "2018"
 readme      = "README.md"
-license     = "WTFPL"
+license     = "Apache-2.0"
+license_file = "LICENSE"
 
 [dependencies]
 # logging
@@ -20,7 +21,7 @@ structopt       = "0.3.2"
 comrak          = "0.6.0"
 # monitor files
 inotify         = "0.7.0"
-# simple http server
+# http server
 hyper           = "0.13.0-alpha.1"
 tokio           = "0.2.0-alpha.4"
 tokio-fs        = "0.2.0-alpha.4"
