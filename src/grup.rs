@@ -7,13 +7,17 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use comrak::ComrakOptions;
-use futures_channel::oneshot::{channel, Sender};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server, StatusCode};
-use inotify::{EventMask, Inotify, WatchMask};
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use structopt::StructOpt;
-use tokio::prelude::*;
+
 use tokio_fs::File;
+use tokio_io::AsyncReadExt;
+use tokio_sync::oneshot::{self, Sender};
+// #[macro_use]
+// use tokio::prelude::*;
+// use tokio_fs::File;
 
 #[derive(Debug, StructOpt)]
 /// grup - an offline github markdown previewer
@@ -65,7 +69,7 @@ async fn update(updaters: SenderListPtr) -> Result<Response<Body>, hyper::Error>
     response.header("Pragma", "no-cache");
     response.header("Expires", "0");
 
-    let (tx, rx) = channel();
+    let (tx, rx) = oneshot::channel();
     if let Ok(mut updaters) = updaters.lock() {
         updaters.push(tx);
     } else {
@@ -210,7 +214,7 @@ async fn router(
     }
 }
 
-fn spawn_watcher(cfg: CfgPtr, updaters: SenderListPtr) {
+fn spawn_watcher(cfg: CfgPtr, updaters: SenderListPtr) -> notify::Result<RecommendedWatcher> {
     let parent = cfg
         .md_file
         .parent()
@@ -221,42 +225,43 @@ fn spawn_watcher(cfg: CfgPtr, updaters: SenderListPtr) {
                 PathBuf::from(x)
             }
         })
-        .unwrap_or(PathBuf::from("/"));
-    std::thread::spawn(move || {
-        let mut inotify = Inotify::init().expect("inotify init failed");
-        inotify
-            .add_watch(&parent, WatchMask::MODIFY | WatchMask::CREATE)
-            .expect("failed to watch");
-        let mut buf = [0u8; 1024];
-        let md_file_name = cfg.md_file.file_name().expect("path was `..`");
-        loop {
-            let events = inotify
-                .read_events_blocking(&mut buf)
-                .expect("failed to read events");
-            for event in events {
-                if event.name.is_none() {
-                    break;
+        .unwrap_or_else(|| PathBuf::from("/"));
+
+    // this uses os specific file watching where possible (i.e. inotify on linux)
+    // it forks of a mio event loop in the background and then calls the provided closure
+    // with the yielded events
+    let md_file_name = cfg.md_file.file_name().expect("path was `..`").to_owned();
+    let mut file_event_watcher: RecommendedWatcher =
+        Watcher::new_immediate(move |event: notify::Result<Event>| {
+            let event = match event {
+                Ok(ev) => ev,
+                Err(e) => {
+                    error!("received file notifier error {:?}. Ignoring file event.", e);
+                    return;
                 }
-                let name = event.name.unwrap();
-                if event.mask.contains(EventMask::CREATE) {
-                    debug!("file created {:?}", name);
-                } else if event.mask.contains(EventMask::MODIFY) {
-                    debug!("file modified {:?}", name);
-                }
-                if Path::new(name) == md_file_name {
-                    info!("file updated {:?}", name);
-                    if let Ok(mut updaters) = updaters.lock() {
-                        for tx in updaters.drain(..) {
-                            // ignore errors
-                            let _ = tx.send(());
-                        }
-                    } else {
-                        error!("Internal error: mutex poisoned");
+            };
+
+            match event.kind {
+                EventKind::Create(_) => debug!("files created {:?}", &event.paths),
+                EventKind::Modify(_) => debug!("files modified {:?}", &event.paths),
+                _ => return,
+            };
+
+            if event.paths.iter().any(|path| path.eq(&md_file_name)) {
+                info!("md file updated {:?}", cfg.md_file);
+                if let Ok(mut updaters) = updaters.lock() {
+                    for tx in updaters.drain(..) {
+                        // ignore errors
+                        let _ = tx.send(());
                     }
+                } else {
+                    error!("Internal error: mutex poisoned");
                 }
             }
-        }
-    });
+        })?;
+
+    file_event_watcher.watch(&parent, RecursiveMode::NonRecursive)?;
+    Ok(file_event_watcher)
 }
 
 #[tokio::main]
@@ -283,7 +288,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     let updaters = Arc::new(Mutex::new(Vec::new()));
-    spawn_watcher(cfg.clone(), Arc::clone(&updaters));
+    // we just hold on to this, so the file watcher is killed when this function exits
+    let _watcher = spawn_watcher(cfg.clone(), Arc::clone(&updaters));
 
     let service = make_service_fn(|_| {
         let cfg = Arc::clone(&cfg);

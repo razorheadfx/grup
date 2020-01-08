@@ -8,25 +8,25 @@ categories  = ["command-line-utilities", "visualization"]
 repository  = "https://github.com/razorheadfx/grup"
 edition     = "2018"
 readme      = "README.md"
-license     = "Apache-2.0"
-license_file = "LICENSE"
+license-file = "LICENSE"
 
 [dependencies]
 # logging
-log             = "0.4.8"
-env_logger      = "0.6.0"
+log             = "0.4"
+env_logger      = "0.6"
 # cmdline parsing
-structopt       = "0.3.2"
+structopt       = "0.3"
 # md parser
-comrak          = "0.6.0"
+comrak          = "0.6"
 # monitor files
-inotify         = "0.7.0"
+notify         = "5.0.0-pre.2"
 # http server
-hyper           = "0.13.0-alpha.1"
-tokio           = "0.2.0-alpha.4"
-tokio-fs        = "0.2.0-alpha.4"
-# async primitives
-futures-channel-preview = "0.3.0-alpha.18"
+hyper           = "0.13.0-alpha.4"
+# tokio = { version = "0.2", features = ["full"] }
+tokio-fs        = "0.2.0-alpha.6"
+tokio-io        = "0.2.0-alpha.6"
+tokio-sync      = "0.2.0-alpha.6"
+tokio           = { version = "=0.2.0-alpha.6" }
 
 [[bin]]
 name = "grup"
