@@ -1,4 +1,8 @@
 language: rust
+os:
+  - windows
+  - linux
+  - osx
 cache: cargo
 before_script:
 - rustup component add rustfmt
@@ -17,3 +21,4 @@ env:
 matrix:
   allow_failures:
     - rust: nightly
+    - os: osx
