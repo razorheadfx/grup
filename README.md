@@ -2,7 +2,7 @@
 [![Latest Version](https://img.shields.io/crates/v/grup.svg)](https://crates.io/crates/grup)
 [![Documentation](https://docs.rs/grup/badge.svg)](https://docs.rs/crate/grup)
 [![License](https://img.shields.io/crates/l/grup.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-[![Build Status](https://travis-ci.org/razorheadfx/grup.svg?branch=master)](https://travis-ci.org/razorheadfx/grup)
+[![BuildStatus](https://github.com/razorheadfx/grup/actions/workflows/rust.yml/badge.svg)](https://github.com/razorheadfx/grup/actions)
 [![dependency status](https://deps.rs/repo/github/razorheadfx/grup/status.svg)](https://deps.rs/repo/github/razorheadfx/grup)
 
 ## What is grup?
