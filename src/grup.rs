@@ -267,22 +267,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::Builder::from_default_env().init();
     let cfg = Arc::new(Cfg::from_args());
     let file = &cfg.md_file;
-    if let Some(parent) = file.parent() {
-        std::env::set_current_dir(parent)?;
-    } else {
-        std::env::set_current_dir(std::path::Component::RootDir.as_os_str())?;
-    }
+
+    debug!("Configuration {:#?}", &cfg);
 
     if !file.exists() {
-        return Err(
-            io::Error::new(io::ErrorKind::Other, format!("No such file: {:?}", file)).into(),
-        );
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("No (markdown) file at: {:?}", file),
+        )
+        .into());
     }
 
     if !file.is_file() {
         return Err(
-            io::Error::new(io::ErrorKind::Other, format!("No such file: {:?}", file)).into(),
+            io::Error::new(io::ErrorKind::Other, format!("{:?} is not a file.", file)).into(),
         );
+    }
+
+    // move the workdir relative to the MD file
+    // that way resources in directories relative to the MD file can be serveed as static files
+    // also catch the case where the path has no parent directory
+    //(i.e. file is in working directory & given filename is relative)
+    // file.parent() will return an empty string in this case (i would expected it to return None in that case)
+    if let Some(parent) = file
+        .parent()
+        .map(|s| s.to_str())
+        .flatten()
+        .filter(|s| !s.is_empty())
+    {
+        debug!("File is not in current WD. Changing WD to {}", &parent);
+        eprintln!("* Switching working directory to {}", parent);
+        std::env::set_current_dir(parent)?;
     }
 
     let updaters = Arc::new(Mutex::new(Vec::new()));
