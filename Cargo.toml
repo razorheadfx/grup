@@ -1,7 +1,7 @@
 [package]
 name        = "grup"
 description = "an offline github markdown previewer"
-version     = "0.2.0"
+version     = "0.2.1"
 authors     = ["razorheadfx <\"felix.girke@tu-dortmund.de\">"]
 keywords    = ["grip", "offline", "markdown", "github", "preview"]
 categories  = ["command-line-utilities", "visualization"]
@@ -13,20 +13,16 @@ license-file = "LICENSE"
 [dependencies]
 # logging
 log             = "0.4"
-env_logger      = "0.6"
+env_logger      = "0.9"
 # cmdline parsing
 structopt       = "0.3"
 # md parser
-comrak          = "0.6"
+comrak          = "0.12"
 # monitor files
-notify         = "5.0.0-pre.2"
+notify         = "5.0.0-pre.13"
 # http server
-hyper           = "0.13.0-alpha.4"
-# tokio = { version = "0.2", features = ["full"] }
-tokio-fs        = "0.2.0-alpha.6"
-tokio-io        = "0.2.0-alpha.6"
-tokio-sync      = "0.2.0-alpha.6"
-tokio           = { version = "=0.2.0-alpha.6" }
+hyper           = { version = "0.14", features = ["full"] }
+tokio           = { version = "1.13", features = ["full"] }
 
 [[bin]]
 name = "grup"

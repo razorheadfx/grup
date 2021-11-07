@@ -9,15 +9,13 @@ use std::sync::{Arc, Mutex};
 use comrak::ComrakOptions;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server, StatusCode};
+
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use structopt::StructOpt;
 
-use tokio_fs::File;
-use tokio_io::AsyncReadExt;
-use tokio_sync::oneshot::{self, Sender};
-// #[macro_use]
-// use tokio::prelude::*;
-// use tokio_fs::File;
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
+use tokio::sync::oneshot::{self, Sender};
 
 #[derive(Debug, StructOpt)]
 /// grup - an offline github markdown previewer
@@ -56,18 +54,17 @@ type SenderListPtr = Arc<Mutex<Vec<Sender<()>>>>;
 const DEFAULT_CSS: &[u8] = include_bytes!("../resource/github-markdown.css");
 
 fn not_found() -> Result<Response<Body>, hyper::Error> {
-    let mut response = Response::builder();
-    response.status(StatusCode::NOT_FOUND);
+    let response = Response::builder().status(StatusCode::NOT_FOUND);
     Ok(response
         .body(Body::from(""))
         .expect("invalid response builder"))
 }
 
 async fn update(updaters: SenderListPtr) -> Result<Response<Body>, hyper::Error> {
-    let mut response = Response::builder();
-    response.header("Cache-Control", "no-cache, no-store, must-revalidate");
-    response.header("Pragma", "no-cache");
-    response.header("Expires", "0");
+    let response = Response::builder()
+        .header("Cache-Control", "no-cache, no-store, must-revalidate")
+        .header("Pragma", "no-cache")
+        .header("Expires", "0");
 
     let (tx, rx) = oneshot::channel();
     if let Ok(mut updaters) = updaters.lock() {
@@ -83,14 +80,13 @@ async fn update(updaters: SenderListPtr) -> Result<Response<Body>, hyper::Error>
 }
 
 async fn md_file(cfg: CfgPtr) -> Result<Response<Body>, hyper::Error> {
-    let mut response = Response::builder();
-    response.header("Content-type", "text/html");
+    let response = Response::builder().header("Content-type", "text/html");
 
     let content = if let Ok(mut file) = File::open(&cfg.md_file).await {
         let mut buf = String::new();
         if file.read_to_string(&mut buf).await.is_ok() {
             let mut options = ComrakOptions::default();
-            options.hardbreaks = true;
+            options.render.hardbreaks = true;
             comrak::markdown_to_html(&buf, &options)
         } else {
             return not_found();
@@ -161,9 +157,9 @@ async fn md_file(cfg: CfgPtr) -> Result<Response<Body>, hyper::Error> {
         .expect("invalid response builder"))
 }
 
+// serve the standard CSS
 async fn css() -> Result<Response<Body>, hyper::Error> {
-    let mut response = Response::builder();
-    response.header("Content-type", "text/css");
+    let response = Response::builder().header("Content-type", "text/css");
     Ok(response
         .body(Body::from(DEFAULT_CSS))
         .expect("invalid response builder"))
@@ -171,7 +167,7 @@ async fn css() -> Result<Response<Body>, hyper::Error> {
 
 // Will only serve files relative to the md file
 async fn static_file(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-    let mut response = Response::builder();
+    let response = Response::builder();
     let cwd = std::env::current_dir().expect("no working dir");
     if req.uri().path().len() > 1 {
         let mut fullpath = cwd.clone();
@@ -195,6 +191,7 @@ async fn static_file(req: Request<Body>) -> Result<Response<Body>, hyper::Error>
     not_found()
 }
 
+// route the different URIs
 async fn router(
     cfg: CfgPtr,
     updaters: SenderListPtr,
@@ -214,6 +211,7 @@ async fn router(
     }
 }
 
+// watch the provided file for changes
 fn spawn_watcher(cfg: CfgPtr, updaters: SenderListPtr) -> notify::Result<RecommendedWatcher> {
     let parent = cfg
         .md_file
@@ -232,7 +230,7 @@ fn spawn_watcher(cfg: CfgPtr, updaters: SenderListPtr) -> notify::Result<Recomme
     // with the yielded events
     let md_file_name = cfg.md_file.file_name().expect("path was `..`").to_owned();
     let mut file_event_watcher: RecommendedWatcher =
-        Watcher::new_immediate(move |event: notify::Result<Event>| {
+        notify::recommended_watcher(move |event: notify::Result<Event>| {
             let event = match event {
                 Ok(ev) => ev,
                 Err(e) => {
@@ -269,22 +267,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::Builder::from_default_env().init();
     let cfg = Arc::new(Cfg::from_args());
     let file = &cfg.md_file;
-    if let Some(parent) = file.parent() {
-        std::env::set_current_dir(parent)?;
-    } else {
-        std::env::set_current_dir(std::path::Component::RootDir.as_os_str())?;
-    }
+
+    debug!("Configuration {:#?}", &cfg);
 
     if !file.exists() {
-        return Err(
-            io::Error::new(io::ErrorKind::Other, format!("No such file: {:?}", file)).into(),
-        );
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("No (markdown) file at: {:?}", file),
+        )
+        .into());
     }
 
     if !file.is_file() {
         return Err(
-            io::Error::new(io::ErrorKind::Other, format!("No such file: {:?}", file)).into(),
+            io::Error::new(io::ErrorKind::Other, format!("{:?} is not a file.", file)).into(),
         );
+    }
+
+    // move the workdir relative to the MD file
+    // that way resources in directories relative to the MD file can be serveed as static files
+    // also catch the case where the path has no parent directory
+    //(i.e. file is in working directory & given filename is relative)
+    // file.parent() will return an empty string in this case (i would expected it to return None in that case)
+    if let Some(parent) = file
+        .parent()
+        .map(|s| s.to_str())
+        .flatten()
+        .filter(|s| !s.is_empty())
+    {
+        debug!("File is not in current WD. Changing WD to {}", &parent);
+        eprintln!("* Switching working directory to {}", parent);
+        std::env::set_current_dir(parent)?;
     }
 
     let updaters = Arc::new(Mutex::new(Vec::new()));
@@ -303,8 +316,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let addr = std::net::SocketAddr::new(cfg.host, cfg.port);
     let server = Server::bind(&addr).serve(service);
-    println!("Server running at http://{}", addr);
-    println!("Press Ctrl-C to exit");
+    eprintln!("* Webserver running at http://{}", addr);
+    eprintln!("Press Ctrl-C to stop it & exit");
     server.await?;
     Ok(())
 }
