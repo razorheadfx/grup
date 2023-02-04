@@ -22,7 +22,7 @@ comrak          = "0.13.0"
 notify         = "5.0.0-pre.13"
 # http server
 hyper           = { version = "0.14.19", features = ["full"] }
-tokio           = { version = "1.19.2", features = ["full"] }
+tokio           = { version = "1.20.4", features = ["full"] }
 
 [[bin]]
 name = "grup"
