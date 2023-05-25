@@ -5,6 +5,9 @@ name: Build and upload binaries to github
 # trigger on any new tag
 on:
   workflow_dispatch:
+  schedule:
+  # run every month on the first day at 01:00
+    - cron: '0 1 1 * *'
   push:
     tags:
     - "*"
