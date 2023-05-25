@@ -4,6 +4,7 @@ name: Build and upload binaries to github
 
 # trigger on any new tag
 on:
+  workflow_dispatch:
   push:
     tags:
     - "*"
