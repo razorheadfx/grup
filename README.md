@@ -9,7 +9,7 @@
 ```grup``` is an offline markdown previewer inspired by the impeccable [grip](https://github.com/joeyespo/grip) - minus sending your local files to [github](https://developer.github.com/v3/markdown/) for formatting - therefore a little easier to stomach for privacy inclined people (like me).
 
 ## Installing
-With [Rust installed](https://rustup.rs) run:
+With [Rust 1.70 or higher installed](https://rustup.rs) run:
 ```shell
 cargo install grup
 ``` 
